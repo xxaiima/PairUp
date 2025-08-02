@@ -11,10 +11,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Theme state to be managed by a Provider or similar state management
-  ThemeMode _themeMode = ThemeMode.light;
-
   final TextEditingController _nameController = TextEditingController();
+  bool _pushNotificationsEnabled = false;
 
   @override
   void initState() {
@@ -38,22 +36,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _sendPasswordResetEmail() async {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _sendPasswordResetEmail(User? user) async {
     if (user != null && user.email != null) {
       try {
         await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email!);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Password Reset'),
               content: Text('Password reset link sent to ${user.email}'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
             ),
           );
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to send password reset email: $e')),
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Error'),
+              content: Text('Failed to send password reset email: $e'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
           );
         }
       }
@@ -64,28 +79,94 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _nameController.text = user?.displayName ?? '';
     showDialog(
       context: context,
+      builder: (context) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: AppTheme.primaryColor),
+        ),
+        child: AlertDialog(
+          title: const Text('Edit Profile'),
+          content: TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await user?.updateDisplayName(_nameController.text);
+                if (context.mounted) {
+                  setState(() {});
+                  Navigator.of(context).pop();
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Profile Updated'),
+                      content: const Text('Your profile has been updated.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(labelText: 'Name'),
+        title: const Text('About'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('App Version: 1.0.0'),
+            const SizedBox(height: 10),
+            const Text(
+              'User Instructions:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text('Getting Started:'),
+            const Text('• Share your unique code to connect with a partner.'),
+            const Text(
+              '• Accept or decline partner requests from the notifications screen.',
+            ),
+            const SizedBox(height: 8),
+            const Text('Task Management:'),
+            const Text(
+              '• Create and manage tasks for a partnership from the partner\'s screen.',
+            ),
+            const Text(
+              '• Check off tasks to mark them complete or use the delete button.',
+            ),
+            const SizedBox(height: 8),
+            const Text('Book Management:'),
+            const Text('• Use the search bar to find and add new books.'),
+            const Text('• Tap a book to update progress, notes, or ratings.'),
+            const Text(
+              '• Use the sharing toggle to share your progress with partners.',
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await user?.updateDisplayName(_nameController.text);
-              if (context.mounted) {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Profile updated!')),
-                );
-              }
-            },
-            child: const Text('Save'),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -151,18 +232,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
           const Divider(),
-          // General Settings
+          // Notifications Section
           ListTile(
-            leading: const Icon(Icons.palette_outlined),
-            title: const Text('Theme'),
+            leading: const Icon(Icons.notifications),
+            title: const Text('Push Notifications'),
             trailing: Switch(
-              value: _themeMode == ThemeMode.dark,
+              value: _pushNotificationsEnabled,
               onChanged: (value) {
                 setState(() {
-                  _themeMode = value ? ThemeMode.dark : ThemeMode.light;
-                  // TODO: Your app's main widget needs to listen to this state change to update the theme
+                  _pushNotificationsEnabled = value;
                 });
               },
+              activeColor: AppTheme.primaryColor,
             ),
           ),
           const Divider(),
@@ -170,12 +251,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.lock_reset),
             title: const Text('Reset Password'),
-            onTap: _sendPasswordResetEmail,
+            onTap: () => _sendPasswordResetEmail(user),
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
             title: const Text('Log Out'),
             onTap: _signOut,
+          ),
+          const Divider(),
+          // About Section
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About'),
+            onTap: _showAboutDialog,
           ),
           const Divider(),
         ],
