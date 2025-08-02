@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "103645167370",
+    "project_id": "pairup-2025",
+    "storage_bucket": "pairup-2025.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:103645167370:android:0b5214db76ddd05a2804f3",
+        "android_client_info": {
+          "package_name": "com.example.pair_up"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9wyj7stt5vF2h-VD4gz58gjUYbsnuqTs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
