@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-//import 'partner_list_screen.dart';
-//import 'books_screen.dart';
+import 'partner_list.dart';
+import 'books.dart';
 import 'settings.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,8 +14,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   static const List<Widget> _pages = <Widget>[
-    //PartnerListScreen(),
-    //BooksScreen(),
+    PartnerListScreen(),
+    BooksScreen(),
     SettingsScreen(),
   ];
 
