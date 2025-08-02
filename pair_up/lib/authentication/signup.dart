@@ -15,12 +15,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   bool _isLoading = false;
+  String? _passwordMismatchError;
 
   Future<void> _signUp() async {
     if (nameController.text.trim().isEmpty ||
         emailController.text.trim().isEmpty ||
-        passwordController.text.trim().isEmpty) {
+        passwordController.text.trim().isEmpty ||
+        confirmPasswordController.text.trim().isEmpty) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -39,9 +43,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
+    if (passwordController.text.trim() !=
+        confirmPasswordController.text.trim()) {
+      setState(() {
+        _passwordMismatchError = "Passwords do not match.";
+      });
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _passwordMismatchError = null;
     });
 
     try {
@@ -140,7 +153,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  "Create\nAccount",
+                  "Create Account",
                   style: Theme.of(context).textTheme.displayLarge,
                 ),
                 const SizedBox(height: 40),
@@ -153,6 +166,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   controller: passwordController,
                   isPassword: true,
                 ),
+                const SizedBox(height: 20),
+                CustomTextField(
+                  hint: "Confirm Password",
+                  controller: confirmPasswordController,
+                  isPassword: true,
+                ),
+                if (_passwordMismatchError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      _passwordMismatchError!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 const SizedBox(height: 40),
                 PrimaryButton(
                   text: "Sign Up",
@@ -169,7 +196,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   children: [
                     const Text("Already have an account?"),
                     TextButton(
-                      onPressed: () => Navigator.pushReplacement(
+                      onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => SignInScreen()),
                       ),

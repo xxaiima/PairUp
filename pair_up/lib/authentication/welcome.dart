@@ -19,7 +19,7 @@ class WelcomeScreen extends StatelessWidget {
               children: [
                 const Spacer(flex: 2),
                 Icon(
-                  Icons.group_add,
+                  Icons.diversity_1_rounded,
                   size: 100,
                   color: AppTheme.primaryColor.withOpacity(0.2),
                 ),

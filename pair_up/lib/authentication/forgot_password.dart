@@ -76,7 +76,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  "Forgot\nPassword?",
+                  "Forgot Password?",
                   style: Theme.of(context).textTheme.displayLarge,
                 ),
                 const SizedBox(height: 20),

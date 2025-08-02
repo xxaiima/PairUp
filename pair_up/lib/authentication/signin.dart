@@ -98,7 +98,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  "Welcome\nBack",
+                  "Welcome Back",
                   style: Theme.of(context).textTheme.displayLarge,
                 ),
                 const SizedBox(height: 40),
@@ -138,7 +138,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   children: [
                     const Text("Don't have an account?"),
                     TextButton(
-                      onPressed: () => Navigator.pushReplacement(
+                      onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => SignUpScreen()),
                       ),
