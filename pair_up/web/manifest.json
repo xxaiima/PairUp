@@ -1,6 +1,6 @@
 {
-    "name": "pair_up",
-    "short_name": "pair_up",
+    "name": "PairUp",
+    "short_name": "PairUp",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
