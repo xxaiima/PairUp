@@ -1,4 +1,4 @@
-// partner_task_screen.dart
+// partner_task.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -26,21 +26,79 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
   final List<String> _selectedTaskIds = [];
 
   Future<void> _deleteTasks() async {
-    final db = FirebaseFirestore.instance;
-    await Future.wait(
-      _selectedTaskIds.map(
-        (taskId) => db.collection('tasks').doc(taskId).delete(),
-      ),
-    );
+    if (_selectedTaskIds.isEmpty) return;
 
-    if (mounted) {
-      setState(() {
-        _selectedTaskIds.clear();
-        _isDeleting = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tasks deleted successfully.')),
-      );
+    final db = FirebaseFirestore.instance;
+    final currentUser = FirebaseAuth.instance.currentUser!;
+    final currentUserName = currentUser.displayName ?? 'A User';
+    final currentUserFirstName = currentUserName.split(' ').first;
+    final numberOfTasksToDelete = _selectedTaskIds.length;
+
+    try {
+      final tasksQuery = await db
+          .collection('tasks')
+          .where(FieldPath.documentId, whereIn: _selectedTaskIds)
+          .get();
+
+      final batch = db.batch();
+
+      for (final taskDoc in tasksQuery.docs) {
+        final taskData = taskDoc.data();
+        final taskTitle = taskData['title'] ?? 'a task';
+
+        final partnerNotificationRef = db
+            .collection('users')
+            .doc(widget.partnerId)
+            .collection('notifications')
+            .doc();
+
+        batch.set(partnerNotificationRef, {
+          'type': 'task_deleted',
+          'message': '$currentUserFirstName deleted the task: "$taskTitle".',
+          'initials': currentUserFirstName.substring(0, 1),
+          'senderId': currentUser.uid,
+          'senderName': currentUserName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        final partnerUserRef = db.collection('users').doc(widget.partnerId);
+        batch.update(partnerUserRef, {
+          'unreadNotifications': FieldValue.increment(1),
+        });
+
+        batch.delete(taskDoc.reference);
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        setState(() {
+          _selectedTaskIds.clear();
+          _isDeleting = false;
+        });
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Success"),
+            content: Text(
+              "$numberOfTasksToDelete task(s) deleted successfully.",
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to delete tasks: $e")));
+      }
     }
   }
 
@@ -70,6 +128,28 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                     .get();
 
                 for (final doc in tasksQuery.docs) {
+                  transaction.delete(doc.reference);
+                }
+
+                final currentUserNotificationsQuery = await db
+                    .collection('users')
+                    .doc(currentUser.uid)
+                    .collection('notifications')
+                    .where('senderId', isEqualTo: widget.partnerId)
+                    .get();
+
+                for (final doc in currentUserNotificationsQuery.docs) {
+                  transaction.delete(doc.reference);
+                }
+
+                final partnerNotificationsQuery = await db
+                    .collection('users')
+                    .doc(widget.partnerId)
+                    .collection('notifications')
+                    .where('senderId', isEqualTo: currentUser.uid)
+                    .get();
+
+                for (final doc in partnerNotificationsQuery.docs) {
                   transaction.delete(doc.reference);
                 }
 
@@ -107,7 +187,6 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        //title: Text("$currentUserFirstName & $partnerFirstName"),
         actions: _isDeleting
             ? [
                 IconButton(
@@ -120,7 +199,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                         builder: (context) => AlertDialog(
                           title: const Text('Delete Tasks?'),
                           content: Text(
-                            'Are you sure you want to delete ${_selectedTaskIds.length} tasks?',
+                            'Are you sure you want to delete ${_selectedTaskIds.length} task(s)?',
                           ),
                           actions: [
                             TextButton(
@@ -179,17 +258,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /*Text(
-                  "$currentUserFirstName & $partnerFirstName",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.displayLarge?.copyWith(fontSize: 32),
-                ),*/
                 const SizedBox(height: 12),
-
-                //const Divider(),
-                const SizedBox(height: 2),
-                // Clickable link to Partner's reading list
                 GestureDetector(
                   onTap: () {
                     Navigator.push(
@@ -217,7 +286,6 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
               ],
             ),
           ),
-          // Section for shared tasks
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -263,7 +331,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                             ? Checkbox(
                                 value: _selectedTaskIds.contains(taskId),
                                 activeColor: AppTheme.primaryColor,
-                                checkColor: Colors.white,
+                                checkColor: AppTheme.textOnPrimary,
                                 onChanged: (bool? value) {
                                   setState(() {
                                     if (value == true) {
@@ -277,17 +345,102 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                             : Checkbox(
                                 value: isCompletedByUser,
                                 activeColor: AppTheme.primaryColor,
-                                checkColor: Colors.white,
-                                onChanged: (bool? value) {
+                                checkColor: AppTheme.textOnPrimary,
+                                onChanged: (bool? value) async {
                                   final newStatus = value == true
                                       ? 'completed'
                                       : 'pending';
-                                  FirebaseFirestore.instance
-                                      .collection('tasks')
-                                      .doc(taskId)
-                                      .update({
-                                        'status.${currentUser.uid}': newStatus,
-                                      });
+
+                                  try {
+                                    await FirebaseFirestore.instance
+                                        .collection('tasks')
+                                        .doc(taskId)
+                                        .update({
+                                          'status.${currentUser.uid}':
+                                              newStatus,
+                                        });
+
+                                    final currentUserName =
+                                        currentUser.displayName ?? 'A User';
+                                    final currentUserFirstName = currentUserName
+                                        .split(' ')
+                                        .first;
+                                    final taskTitle =
+                                        taskData['title'] ?? 'a task';
+                                    if (value == true) {
+                                      await FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(widget.partnerId)
+                                          .collection('notifications')
+                                          .add({
+                                            'taskId': taskId,
+                                            'type': 'task_completed',
+                                            'message':
+                                                '$currentUserFirstName completed the task "$taskTitle".',
+                                            'initials': currentUserFirstName
+                                                .substring(0, 1),
+                                            'senderId': currentUser.uid,
+                                            'senderName': currentUserName,
+                                            'timestamp':
+                                                FieldValue.serverTimestamp(),
+                                          });
+
+                                      await FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(widget.partnerId)
+                                          .update({
+                                            'unreadNotifications':
+                                                FieldValue.increment(1),
+                                          });
+                                    } else {
+                                      final notificationsQuery =
+                                          await FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(widget.partnerId)
+                                              .collection('notifications')
+                                              .where(
+                                                'taskId',
+                                                isEqualTo: taskId,
+                                              )
+                                              .where(
+                                                'type',
+                                                isEqualTo: 'task_completed',
+                                              )
+                                              .where(
+                                                'senderId',
+                                                isEqualTo: currentUser.uid,
+                                              )
+                                              .limit(1)
+                                              .get();
+
+                                      for (final doc
+                                          in notificationsQuery.docs) {
+                                        await doc.reference.delete();
+                                      }
+
+                                      if (notificationsQuery.docs.isNotEmpty) {
+                                        await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(widget.partnerId)
+                                            .update({
+                                              'unreadNotifications':
+                                                  FieldValue.increment(-1),
+                                            });
+                                      }
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to update task: $e',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
                                 },
                               ),
                         title: Column(

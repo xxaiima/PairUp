@@ -1,8 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../themes/theme.dart';
 import 'book_details.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 
@@ -15,6 +12,26 @@ class PartnerReadingListScreen extends StatelessWidget {
     required this.partnerId,
     required this.partnerName,
   });
+
+  Widget _buildBookCover(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const Center(
+        child: Icon(Icons.book, size: 50, color: Colors.grey),
+      );
+    }
+
+    final secureUrl = imageUrl.replaceFirst('http://', 'https://');
+
+    return Image.network(
+      secureUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return const Center(
+          child: Icon(Icons.book, size: 50, color: Colors.grey),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +62,7 @@ class PartnerReadingListScreen extends StatelessWidget {
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
                     child: Text(
-                      '${partnerName} has no books yet.',
+                      '${partnerName} has not shared any books yet.',
                       style: const TextStyle(color: Colors.grey),
                     ),
                   );
@@ -85,20 +102,11 @@ class PartnerReadingListScreen extends StatelessWidget {
                         );
                       },
                       child: Card(
+                        clipBehavior: Clip.antiAlias,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: imageUrl.isNotEmpty
-                                  ? Image.network(imageUrl, fit: BoxFit.cover)
-                                  : const Center(
-                                      child: Icon(
-                                        Icons.book,
-                                        size: 50,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                            ),
+                            Expanded(child: _buildBookCover(imageUrl)),
                             Padding(
                               padding: const EdgeInsets.all(8.0),
                               child: Text(

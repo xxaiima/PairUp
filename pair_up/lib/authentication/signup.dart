@@ -73,6 +73,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'name': nameController.text.trim(),
         'email': emailController.text.trim(),
         'partners': [],
+        'unreadNotifications': 0,
+        'pushNotificationsEnabled': false,
       });
 
       await FirebaseAuth.instance.signOut();

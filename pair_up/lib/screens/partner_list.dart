@@ -1,7 +1,7 @@
-// partner_list_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:badges/badges.dart' as badges;
 import 'add_partner.dart';
 import 'notifications.dart';
 import 'partner_task.dart';
@@ -9,160 +9,6 @@ import '../themes/theme.dart';
 
 class PartnerListScreen extends StatelessWidget {
   const PartnerListScreen({super.key});
-
-  Future<void> _unpairPartner(
-    BuildContext context,
-    String partnerId,
-    String partnerName,
-  ) async {
-    final currentUser = FirebaseAuth.instance.currentUser!;
-    final db = FirebaseFirestore.instance;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text("Unpair with $partnerName?"),
-        content: const Text(
-          "This action cannot be undone. All shared tasks will be deleted.",
-        ),
-        actions: [
-          TextButton(
-            child: const Text("Cancel"),
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-          TextButton(
-            child: const Text("Unpair", style: TextStyle(color: Colors.red)),
-            onPressed: () async {
-              await db.runTransaction((transaction) async {
-                final pairedParticipants = [currentUser.uid, partnerId]..sort();
-
-                final tasksQuery = await db
-                    .collection('tasks')
-                    .where('participants', isEqualTo: pairedParticipants)
-                    .where('isPaired', isEqualTo: true)
-                    .get();
-
-                for (final doc in tasksQuery.docs) {
-                  transaction.delete(doc.reference);
-                }
-
-                transaction.update(
-                  db.collection('users').doc(currentUser.uid),
-                  {
-                    'partners': FieldValue.arrayRemove([partnerId]),
-                  },
-                );
-                transaction.update(db.collection('users').doc(partnerId), {
-                  'partners': FieldValue.arrayRemove([currentUser.uid]),
-                });
-              });
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Unpaired with $partnerName")),
-                );
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _acceptRequest(String senderId, String requestId) async {
-    final currentUser = FirebaseAuth.instance.currentUser!;
-    final db = FirebaseFirestore.instance;
-
-    await db.runTransaction((transaction) async {
-      transaction.update(db.collection('users').doc(currentUser.uid), {
-        'partners': FieldValue.arrayUnion([senderId]),
-      });
-      transaction.update(db.collection('users').doc(senderId), {
-        'partners': FieldValue.arrayUnion([currentUser.uid]),
-      });
-      transaction.delete(db.collection('partner_requests').doc(requestId));
-    });
-  }
-
-  Future<void> _declineRequest(String requestId) async {
-    await FirebaseFirestore.instance
-        .collection('partner_requests')
-        .doc(requestId)
-        .delete();
-  }
-
-  Widget _buildPendingRequests(BuildContext context, String currentUserId) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('partner_requests')
-          .where('receiverId', isEqualTo: currentUserId)
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        final requests = snapshot.data!.docs;
-        return Container(
-          padding: const EdgeInsets.all(16.0),
-          color: const Color.fromARGB(246, 202, 213, 241),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Pending Requests",
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Column(
-                children: requests.map((request) {
-                  final senderName = request['senderName'] ?? 'Someone';
-                  final senderId = request['senderId'];
-                  final requestId = request.id;
-                  final initials = senderName.isNotEmpty
-                      ? senderName.substring(0, 1).toUpperCase()
-                      : '?';
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        child: Text(initials),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          "$senderName wants to connect.",
-                          style: TextStyle(color: AppTheme.primaryColor),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.check_circle,
-                          color: Color.fromARGB(255, 68, 138, 70),
-                        ),
-                        onPressed: () => _acceptRequest(senderId, requestId),
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.cancel,
-                          color: Color.fromARGB(255, 122, 34, 27),
-                        ),
-                        onPressed: () => _declineRequest(requestId),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildEmptyState(BuildContext context) {
     return Center(
@@ -197,13 +43,55 @@ class PartnerListScreen extends StatelessWidget {
         title: const Text("My Partners"),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificationsScreen(),
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(currentUser.uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.data() == null) {
+                return IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.notifications_outlined),
+                );
+              }
+
+              final userData = snapshot.data!.data() as Map<String, dynamic>;
+
+              final bool notificationsEnabled =
+                  userData['pushNotificationsEnabled'] ?? true;
+              final int unreadCount = userData['unreadNotifications'] ?? 0;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsScreen(),
+                      ),
+                    );
+                  },
+                  icon: notificationsEnabled && unreadCount > 0
+                      ? badges.Badge(
+                          badgeContent: Text(
+                            '$unreadCount',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          badgeStyle: const badges.BadgeStyle(
+                            badgeColor: Colors.red,
+                          ),
+                          child: const Icon(Icons.notifications_outlined),
+                        )
+                      : const Icon(Icons.notifications_outlined),
                 ),
               );
             },
@@ -214,7 +102,6 @@ class PartnerListScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Divider(height: 1, thickness: 1),
-          _buildPendingRequests(context, currentUser.uid),
           Expanded(
             child: StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance
@@ -314,11 +201,6 @@ class PartnerListScreen extends StatelessWidget {
                                     ),
                                   );
                                 },
-                                onLongPress: () => _unpairPartner(
-                                  context,
-                                  partnerId,
-                                  partnerName,
-                                ),
                               );
                             },
                           );
@@ -381,11 +263,6 @@ class PartnerListScreen extends StatelessWidget {
                                   ),
                                 );
                               },
-                              onLongPress: () => _unpairPartner(
-                                context,
-                                partnerId,
-                                partnerName,
-                              ),
                             );
                           },
                         );
@@ -400,7 +277,6 @@ class PartnerListScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // The logic to navigate to a new screen
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const AddPartnerScreen()),

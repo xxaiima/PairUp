@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../themes/theme.dart';
+import 'dart:async';
 
 class BookDetailsScreen extends StatefulWidget {
   final String bookId;
@@ -22,10 +23,9 @@ class BookDetailsScreen extends StatefulWidget {
 class _BookDetailsScreenState extends State<BookDetailsScreen> {
   final TextEditingController _notesController = TextEditingController();
   final TextEditingController _pageController = TextEditingController();
+  Timer? _notesDebounce;
   double _rating = 0;
   bool _isShared = false;
-  bool _isLoading = false;
-
   int _currentPage = 0;
   int _totalPages = 0;
 
@@ -37,43 +37,42 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
     _isShared = widget.bookData['isShared'] ?? false;
     _currentPage = widget.bookData['currentPage'] ?? 0;
     _totalPages = widget.bookData['totalPages'] ?? 0;
+
+    _notesController.addListener(_onNotesChanged);
   }
 
   @override
   void dispose() {
+    _notesController.removeListener(_onNotesChanged);
     _notesController.dispose();
     _pageController.dispose();
+    _notesDebounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _saveChanges() async {
-    setState(() => _isLoading = true);
+  void _onNotesChanged() {
+    if (_notesDebounce?.isActive ?? false) _notesDebounce!.cancel();
+    _notesDebounce = Timer(const Duration(seconds: 1), () {
+      FirebaseFirestore.instance.collection('books').doc(widget.bookId).update({
+        'notes': _notesController.text,
+      });
+    });
+  }
 
+  Future<void> _updateRating(double newRating) async {
+    setState(() => _rating = newRating);
     await FirebaseFirestore.instance
         .collection('books')
         .doc(widget.bookId)
-        .update({
-          'notes': _notesController.text,
-          'rating': _rating,
-          'isShared': _isShared,
-        });
+        .update({'rating': newRating});
+  }
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Changes Saved"),
-          content: const Text("Your changes have been saved."),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK', style: TextStyle(color: AppTheme.primaryColor)),
-            ),
-          ],
-        ),
-      );
-    }
+  Future<void> _updateSharing(bool isShared) async {
+    setState(() => _isShared = isShared);
+    await FirebaseFirestore.instance
+        .collection('books')
+        .doc(widget.bookId)
+        .update({'isShared': isShared});
   }
 
   Future<void> _updateReadingProgress() async {
@@ -144,39 +143,46 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
     }
   }
 
+  String _secureImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    return url.replaceFirst('http://', 'https://');
+  }
+
+  Widget _buildBookCover(String? url) {
+    if (url == null || url.isEmpty) {
+      return const Icon(Icons.book, size: 150, color: Colors.grey);
+    }
+    // Ensure the URL uses https for web compatibility.
+    final secureUrl = _secureImageUrl(url);
+
+    return Image.network(
+      secureUrl,
+      height: 200,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stackTrace) {
+        return const Icon(Icons.book, size: 150, color: Colors.grey);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = widget.bookData['title'] ?? 'No Title';
     final author = widget.bookData['author'] ?? 'Unknown Author';
-    final imageUrl = widget.bookData['imageUrl'] ?? '';
+    final imageUrl = widget.bookData['imageUrl'];
     final progress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          // Hide the save button if the screen is read-only
-          if (!widget.isReadOnly)
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: _isLoading ? null : _saveChanges,
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(title, overflow: TextOverflow.ellipsis)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, width: 150, fit: BoxFit.cover)
-                  : const Icon(Icons.book, size: 150, color: Colors.grey),
-            ),
+            Center(child: _buildBookCover(imageUrl)),
             const SizedBox(height: 16),
             Text('by $author', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 24),
-            // Page Count Section
             Row(
               children: [
                 Expanded(
@@ -192,12 +198,16 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
                       LinearProgressIndicator(
                         value: progress,
                         color: AppTheme.primaryColor,
-                        backgroundColor: Color.fromARGB(246, 202, 213, 241),
+                        backgroundColor: const Color.fromARGB(
+                          246,
+                          202,
+                          213,
+                          241,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                // Hide the edit button if the screen is read-only
                 if (!widget.isReadOnly)
                   IconButton(
                     icon: const Icon(Icons.edit),
@@ -208,19 +218,19 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
             const SizedBox(height: 24),
             Text('Rating', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            RatingBar.builder(
-              initialRating: _rating,
-              minRating: 1,
-              direction: Axis.horizontal,
-              allowHalfRating: true,
-              itemCount: 5,
-              itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
-              itemBuilder: (context, _) =>
-                  const Icon(Icons.star, color: Colors.amber),
-              // The onRatingUpdate handler is now always active
-              onRatingUpdate: (rating) {
-                setState(() => _rating = rating);
-              },
+            IgnorePointer(
+              ignoring: widget.isReadOnly,
+              child: RatingBar.builder(
+                initialRating: _rating,
+                minRating: 1,
+                direction: Axis.horizontal,
+                allowHalfRating: true,
+                itemCount: 5,
+                itemPadding: const EdgeInsets.symmetric(horizontal: 4.0),
+                itemBuilder: (context, _) =>
+                    const Icon(Icons.star, color: Colors.amber),
+                onRatingUpdate: _updateRating,
+              ),
             ),
             const SizedBox(height: 24),
             Text('Notes', style: Theme.of(context).textTheme.titleLarge),
@@ -228,7 +238,7 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
             TextField(
               controller: _notesController,
               maxLines: 5,
-              readOnly: widget.isReadOnly, // Make the text field read-only
+              readOnly: widget.isReadOnly,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 focusedBorder: OutlineInputBorder(
@@ -238,7 +248,6 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            // Hide the sharing option if the screen is read-only
             if (!widget.isReadOnly)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -247,11 +256,10 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
                     'Share with Partners',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
+
                   Switch(
                     value: _isShared,
-                    onChanged: (value) {
-                      setState(() => _isShared = value);
-                    },
+                    onChanged: _updateSharing,
                     activeColor: AppTheme.primaryColor,
                   ),
                 ],

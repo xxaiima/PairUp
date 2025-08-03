@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import '../themes/theme.dart';
 import 'book_details.dart';
 
@@ -20,6 +21,14 @@ class _BooksScreenState extends State<BooksScreen> {
   bool _isLoading = false;
   bool _isDeleting = false;
   final List<String> _selectedBookIds = [];
+  Timer? _debounce;
+
+  int _startIndex = 0;
+  final int _maxResults = 20;
+  bool _canLoadMore = false;
+  bool _isLoadingMore = false;
+
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -31,38 +40,71 @@ class _BooksScreenState extends State<BooksScreen> {
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
   void _onSearchChanged() {
-    _searchBooks(_searchController.text, loadMore: false);
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      final query = _searchController.text;
+
+      setState(() {
+        _isSearching = query.isNotEmpty;
+      });
+
+      if (query.isNotEmpty) {
+        _startIndex = 0;
+        _searchBooks(query, loadMore: false);
+      }
+    });
   }
 
   Future<void> _searchBooks(String query, {bool loadMore = false}) async {
     if (query.isEmpty) {
-      setState(() => _searchResults = []);
+      setState(() {
+        _searchResults = [];
+        _canLoadMore = false;
+      });
       return;
     }
 
-    if (!loadMore) {
+    if (loadMore) {
+      setState(() => _isLoadingMore = true);
+    } else {
       setState(() {
+        _isLoading = true;
         _searchResults = [];
+        _startIndex = 0;
       });
     }
 
-    setState(() => _isLoading = true);
-
     try {
       final response = await http.get(
-        Uri.parse('https://www.googleapis.com/books/v1/volumes?q=$query'),
+        Uri.parse(
+          'https://www.googleapis.com/books/v1/volumes?q=$query&maxResults=$_maxResults&startIndex=$_startIndex',
+        ),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        setState(() {
-          _searchResults = data['items'] ?? [];
-          _isLoading = false;
-        });
+        final items = data['items'] as List<dynamic>? ?? [];
+
+        if (mounted) {
+          setState(() {
+            if (loadMore) {
+              _searchResults.addAll(items);
+            } else {
+              _searchResults = items;
+            }
+            _startIndex += items.length;
+
+            _canLoadMore = items.length == _maxResults;
+
+            _isLoading = false;
+            _isLoadingMore = false;
+          });
+        }
       } else {
         throw Exception('Failed to load books');
       }
@@ -71,7 +113,10 @@ class _BooksScreenState extends State<BooksScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isLoadingMore = false;
+        });
       }
     }
   }
@@ -82,7 +127,7 @@ class _BooksScreenState extends State<BooksScreen> {
     final title = volumeInfo['title'];
     final authors = volumeInfo['authors']?.join(', ') ?? 'Unknown Author';
     final pageCount = volumeInfo['pageCount'] ?? 0;
-    final imageUrl = volumeInfo['imageLinks']?['thumbnail'] ?? '';
+    final imageUrl = _secureImageUrl(volumeInfo['imageLinks']?['thumbnail']);
 
     await FirebaseFirestore.instance.collection('books').add({
       'userId': currentUser.uid,
@@ -111,24 +156,37 @@ class _BooksScreenState extends State<BooksScreen> {
           ],
         ),
       );
+      setState(() {
+        _searchResults = [];
+      });
     }
   }
 
   Future<void> _deleteSelectedBooks() async {
+    if (_selectedBookIds.isEmpty) return;
+
+    final int numberOfBooksToDelete = _selectedBookIds.length;
+
     final db = FirebaseFirestore.instance;
-    await Future.wait(
-      _selectedBookIds.map(
-        (bookId) => db.collection('books').doc(bookId).delete(),
-      ),
-    );
+    final batch = db.batch();
+
+    for (final bookId in _selectedBookIds) {
+      batch.delete(db.collection('books').doc(bookId));
+    }
+
+    await batch.commit();
 
     if (mounted) {
-      // Replaced SnackBar with a dialog
+      setState(() {
+        _selectedBookIds.clear();
+        _isDeleting = false;
+      });
+
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Deletion Complete'),
-          content: const Text('Books deleted successfully.'),
+          content: Text('$numberOfBooksToDelete book(s) deleted successfully.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -137,11 +195,28 @@ class _BooksScreenState extends State<BooksScreen> {
           ],
         ),
       );
-      setState(() {
-        _selectedBookIds.clear();
-        _isDeleting = false;
-      });
     }
+  }
+
+  Widget _buildBookImage(String? url) {
+    if (url == null || url.isEmpty) {
+      return const Icon(Icons.book, size: 40, color: Colors.grey);
+    }
+    final secureUrl = url.replaceFirst('http://', 'https://');
+
+    return Image.network(
+      secureUrl,
+      width: 40,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return const Icon(Icons.book, size: 40, color: Colors.grey);
+      },
+    );
+  }
+
+  String _secureImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    return url.replaceFirst('http://', 'https://');
   }
 
   Widget _buildSearchResults() {
@@ -156,22 +231,50 @@ class _BooksScreenState extends State<BooksScreen> {
         ),
       );
     }
-    return ListView.builder(
-      itemCount: _searchResults.length,
+    return ListView.separated(
+      itemCount: _searchResults.length + 1,
       itemBuilder: (context, index) {
+        if (index == _searchResults.length) {
+          if (_isLoadingMore) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          if (_canLoadMore) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      _searchBooks(_searchController.text, loadMore: true),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.primaryColor,
+                  ),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Load More'),
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }
+
         final book = _searchResults[index]['volumeInfo'];
         final title = book['title'] ?? 'No Title';
         final authors = book['authors']?.join(', ') ?? 'Unknown Author';
         final imageUrl = book['imageLinks']?['thumbnail'] ?? '';
+
         return ListTile(
-          leading: imageUrl.isNotEmpty
-              ? Image.network(imageUrl, width: 50, fit: BoxFit.cover)
-              : null,
+          leading: _buildBookImage(imageUrl),
           title: Text(title),
           subtitle: Text(authors),
           onTap: () => _addBookToReadingList(_searchResults[index]),
         );
       },
+      separatorBuilder: (context, index) => const Divider(),
     );
   }
 
@@ -192,7 +295,7 @@ class _BooksScreenState extends State<BooksScreen> {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const Center(
             child: Text(
-              'No books added yet.',
+              'Your reading list is empty.\nSearch for a book to get started!',
               style: TextStyle(color: Colors.grey),
             ),
           );
@@ -214,7 +317,7 @@ class _BooksScreenState extends State<BooksScreen> {
                   ? Checkbox(
                       value: _selectedBookIds.contains(bookId),
                       activeColor: AppTheme.primaryColor,
-                      checkColor: Colors.white,
+                      checkColor: AppTheme.textOnPrimary,
                       onChanged: (bool? value) {
                         setState(() {
                           if (value == true) {
@@ -225,9 +328,7 @@ class _BooksScreenState extends State<BooksScreen> {
                         });
                       },
                     )
-                  : imageUrl.isNotEmpty
-                  ? Image.network(imageUrl, width: 50, fit: BoxFit.cover)
-                  : null,
+                  : _buildBookImage(imageUrl),
               title: Text(bookTitle),
               subtitle: Text('by $bookAuthor'),
               trailing: _isDeleting
@@ -272,57 +373,62 @@ class _BooksScreenState extends State<BooksScreen> {
             hintText: 'Search for books...',
             hintStyle: TextStyle(color: AppTheme.primaryColor.withOpacity(0.5)),
             prefixIcon: Icon(Icons.search, color: AppTheme.primaryColor),
+            suffixIcon: _isSearching
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    color: AppTheme.primaryColor,
+                    onPressed: () {
+                      _searchController.clear();
+                      FocusScope.of(context).unfocus();
+                    },
+                  )
+                : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(25),
               borderSide: BorderSide.none,
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: AppTheme.textOnPrimary,
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
           ),
           style: TextStyle(color: AppTheme.primaryColor),
         ),
         automaticallyImplyLeading: false,
-        actions: _searchController.text.isNotEmpty
-            ? null
+        actions: _isSearching
+            ? []
             : _isDeleting
             ? [
                 IconButton(
                   icon: const Icon(Icons.delete),
-                  onPressed: () {
-                    if (_selectedBookIds.isNotEmpty) {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Delete Books?'),
-                          content: Text(
-                            'Are you sure you want to delete ${_selectedBookIds.length} books?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text(
-                                'Cancel',
-                                style: TextStyle(color: Color(0xFF0A2342)),
+                  onPressed: _selectedBookIds.isNotEmpty
+                      ? () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Delete Books?'),
+                              content: Text(
+                                'Are you sure you want to delete ${_selectedBookIds.length} book(s)? This action cannot be undone.',
                               ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    _deleteSelectedBooks();
+                                  },
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
                             ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                _deleteSelectedBooks();
-                              },
-                              child: const Text(
-                                'Delete',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    } else {
-                      setState(() => _isDeleting = false);
-                    }
-                  },
+                          );
+                        }
+                      : null,
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -348,9 +454,7 @@ class _BooksScreenState extends State<BooksScreen> {
           const SizedBox(height: 16),
           const Divider(height: 1),
           Expanded(
-            child: _searchController.text.isNotEmpty
-                ? _buildSearchResults()
-                : _buildReadingList(),
+            child: _isSearching ? _buildSearchResults() : _buildReadingList(),
           ),
         ],
       ),

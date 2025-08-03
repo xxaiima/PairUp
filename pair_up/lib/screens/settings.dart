@@ -1,3 +1,5 @@
+// settings.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../authentication/welcome.dart';
@@ -12,16 +14,64 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _nameController = TextEditingController();
-  bool _pushNotificationsEnabled = false;
+  bool _pushNotificationsEnabled = true;
+  bool _isLoadingSettings = true;
+
+  final TextEditingController _deleteConfirmationController =
+      TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _loadUserSettings();
+  }
+
+  Future<void> _loadUserSettings() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      if (userDoc.exists && userDoc.data() != null) {
+        setState(() {
+          _pushNotificationsEnabled =
+              userDoc.data()!['pushNotificationsEnabled'] ?? false;
+        });
+      }
+    }
+    setState(() => _isLoadingSettings = false);
+  }
+
+  Future<void> _updateNotificationSetting(bool value) async {
+    setState(() {
+      _pushNotificationsEnabled = value;
+    });
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'pushNotificationsEnabled': value,
+      }, SetOptions(merge: true));
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value ? "Notifications turned on" : "Notifications turned off",
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _deleteConfirmationController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -56,7 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
@@ -73,6 +123,155 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     }
+  }
+
+  Future<void> _deleteUserAccount(String password) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) return;
+
+    try {
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+
+      final userDoc = await db.collection('users').doc(user.uid).get();
+      final List<dynamic> partners = userDoc.data()?['partners'] ?? [];
+
+      for (final partnerId in partners) {
+        final partnerRef = db.collection('users').doc(partnerId);
+        batch.update(partnerRef, {
+          'partners': FieldValue.arrayRemove([user.uid]),
+        });
+      }
+
+      batch.delete(db.collection('users').doc(user.uid));
+
+      await batch.commit();
+
+      await user.delete();
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+          (route) => false,
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Account deleted successfully.")),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? "An error occurred.")),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("An unexpected error occurred: $e")),
+        );
+      }
+    }
+  }
+
+  void _showPasswordConfirmationDialog() {
+    _passwordController.clear();
+    showDialog(
+      context: context,
+      builder: (context) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: AppTheme.primaryColor),
+        ),
+        child: AlertDialog(
+          title: const Text('Enter Your Password'),
+          content: TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Password'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final password = _passwordController.text;
+                Navigator.of(context).pop();
+                _deleteUserAccount(password);
+              },
+              child: const Text('Confirm & Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    _deleteConfirmationController.clear();
+    showDialog(
+      context: context,
+      builder: (context) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(
+            context,
+          ).colorScheme.copyWith(primary: AppTheme.primaryColor),
+        ),
+        child: AlertDialog(
+          title: const Text(
+            'Delete Account?',
+            style: TextStyle(color: Colors.red),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "This action is permanent and cannot be undone. All your tasks, partnerships, and data will be erased.",
+              ),
+              const SizedBox(height: 20),
+              const Text('To confirm, please type "DELETE" below:'),
+              TextField(
+                controller: _deleteConfirmationController,
+                decoration: const InputDecoration(hintText: 'DELETE'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: _deleteConfirmationController,
+              builder: (context, value, child) {
+                return TextButton(
+                  onPressed: value.text == 'DELETE'
+                      ? () {
+                          Navigator.of(context).pop();
+                          _showPasswordConfirmationDialog();
+                        }
+                      : null,
+                  child: const Text(
+                    'Next',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showEditProfileDialog(User? user) {
@@ -134,31 +333,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('App Version: 1.0.0'),
-            const SizedBox(height: 10),
-            const Text(
+            Text('App Version: 1.0.0'),
+            SizedBox(height: 10),
+            Text(
               'User Instructions:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            const Text('Getting Started:'),
-            const Text('• Share your unique code to connect with a partner.'),
-            const Text(
+            SizedBox(height: 8),
+            Text('Getting Started:'),
+            Text('• Share your unique code to connect with a partner.'),
+            Text(
               '• Accept or decline partner requests from the notifications screen.',
             ),
-            const SizedBox(height: 8),
-            const Text('Task Management:'),
-            const Text(
+            SizedBox(height: 8),
+            Text('Task Management:'),
+            Text(
               '• Create and manage tasks for a partnership from the partner\'s screen.',
             ),
-            const Text(
+            Text(
               '• Check off tasks to mark them complete or use the delete button.',
             ),
-            const SizedBox(height: 8),
-            const Text('Book Management:'),
-            const Text('• Use the search bar to find and add new books.'),
-            const Text('• Tap a book to update progress, notes, or ratings.'),
-            const Text(
+            SizedBox(height: 8),
+            Text('Book Management:'),
+            Text('• Use the search bar to find and add new books.'),
+            Text('• Tap a book to update progress, notes, or ratings.'),
+            Text(
               '• Use the sharing toggle to share your progress with partners.',
             ),
           ],
@@ -185,89 +384,88 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Settings'),
         automaticallyImplyLeading: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          // User Profile Section
-          Card(
-            child: Padding(
+      body: _isLoadingSettings
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: AppTheme.primaryColor,
-                    child: Text(
-                      userInitials,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundColor: AppTheme.primaryColor,
+                          child: Text(
+                            userInitials,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 20),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.displayName ?? 'No Name',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              user?.email ?? 'No Email',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.edit),
+                          onPressed: () => _showEditProfileDialog(user),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 20),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user?.displayName ?? 'No Name',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        user?.email ?? 'No Email',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
+                ),
+                const SizedBox(height: 24),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.notifications),
+                  title: const Text('Push Notifications'),
+                  trailing: Switch(
+                    value: _pushNotificationsEnabled,
+                    onChanged: _updateNotificationSetting,
+                    activeColor: AppTheme.primaryColor,
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.edit),
-                    onPressed: () => _showEditProfileDialog(user),
-                  ),
-                ],
-              ),
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.lock_reset),
+                  title: const Text('Reset Password'),
+                  onTap: () => _sendPasswordResetEmail(user),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  title: const Text('Delete Account'),
+                  onTap: _showDeleteAccountDialog,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text('Log Out'),
+                  onTap: _signOut,
+                ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: const Text('About'),
+                  onTap: _showAboutDialog,
+                ),
+                const Divider(),
+              ],
             ),
-          ),
-          const SizedBox(height: 24),
-          const Divider(),
-          // Notifications Section
-          ListTile(
-            leading: const Icon(Icons.notifications),
-            title: const Text('Push Notifications'),
-            trailing: Switch(
-              value: _pushNotificationsEnabled,
-              onChanged: (value) {
-                setState(() {
-                  _pushNotificationsEnabled = value;
-                });
-              },
-              activeColor: AppTheme.primaryColor,
-            ),
-          ),
-          const Divider(),
-          // Account Management
-          ListTile(
-            leading: const Icon(Icons.lock_reset),
-            title: const Text('Reset Password'),
-            onTap: () => _sendPasswordResetEmail(user),
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Log Out'),
-            onTap: _signOut,
-          ),
-          const Divider(),
-          // About Section
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('About'),
-            onTap: _showAboutDialog,
-          ),
-          const Divider(),
-        ],
-      ),
     );
   }
 }

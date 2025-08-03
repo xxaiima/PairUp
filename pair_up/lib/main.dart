@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Auth Flow App',
+      title: 'PairUp',
       theme: AppTheme.lightTheme,
       home: AuthWrapper(),
     );

@@ -127,46 +127,87 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
       return;
     }
 
-    // Now send the request with the correct UID
-    await db.collection('partner_requests').add({
-      'senderId': currentUser.uid,
-      'senderName': currentUser.displayName ?? 'A New User',
-      'receiverId': partnerId,
-      'status': 'pending',
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    final currentUserDoc = await db
+        .collection('users')
+        .doc(currentUser.uid)
+        .get();
+    final currentUserPartners =
+        (currentUserDoc.data()?['partners'] as List<dynamic>?) ?? [];
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Request Sent"),
-          content: const Text("Your partner request has been sent."),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop();
-              },
-              child: const Text("OK"),
-            ),
-          ],
-        ),
-      );
+    if (currentUserPartners.contains(partnerId)) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Already Paired"),
+            content: const Text("You are already paired with this user."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await db.runTransaction((transaction) async {
+        final currentUserRef = db.collection('users').doc(currentUser.uid);
+        final partnerRef = db.collection('users').doc(partnerId);
+
+        transaction.update(currentUserRef, {
+          'partners': FieldValue.arrayUnion([partnerId]),
+        });
+        transaction.update(partnerRef, {
+          'partners': FieldValue.arrayUnion([currentUser.uid]),
+        });
+      });
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Success"),
+            content: const Text("Partner added successfully!"),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Failed to add partner: $e")));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   Future<void> _shareCode() async {
     if (_shareCodeValue.isEmpty) return;
-    const deepLinkUrl = 'https://yourdomain.com/invite';
+    const deepLinkUrl = 'https://pair-up/invite';
     final shareText = "$deepLinkUrl?code=$_shareCodeValue";
     await Share.share(shareText, subject: "Pair-Up Invite");
   }
 
   @override
   Widget build(BuildContext context) {
-    const deepLinkUrl = 'https://yourdomain.com/invite';
+    const deepLinkUrl = 'https://pair-up/invite';
     final qrData = "$deepLinkUrl?code=$_shareCodeValue";
 
     return Scaffold(
@@ -185,7 +226,6 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
       body: TabBarView(
         controller: _tabController,
         children: [
-          // "Share Code" Tab
           Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -204,24 +244,6 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
                     version: QrVersions.auto,
                     size: 150.0,
                   ),
-                  /*const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _shareCodeValue,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(color: Colors.white),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),*/
                   const SizedBox(height: 20),
                   Text(
                     "If QR scan doesn't work, use this: ",
@@ -246,7 +268,6 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
               ),
             ),
           ),
-          // "Enter Code" Tab
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -280,7 +301,7 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
                 ElevatedButton(
                   onPressed: _isLoading ? null : _sendPartnerRequest,
                   style: ElevatedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textOnPrimary,
                     backgroundColor: AppTheme.primaryColor,
                   ),
                   child: _isLoading
@@ -292,7 +313,7 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
                             color: Colors.white,
                           ),
                         )
-                      : const Text("Send Request"),
+                      : const Text("Submit"),
                 ),
               ],
             ),

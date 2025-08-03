@@ -65,6 +65,27 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      final currentUserName = currentUser.displayName ?? 'A User';
+      final currentUserFirstName = currentUserName.split(' ').first;
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.partnerId)
+          .collection('notifications')
+          .add({
+            'senderId': currentUser.uid,
+            'type': 'task_created',
+            'message': '$currentUserFirstName added a new task: "$taskName".',
+            'initials': currentUserFirstName.substring(0, 1),
+            'senderName': currentUserName,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.partnerId)
+          .update({'unreadNotifications': FieldValue.increment(1)});
+
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -140,7 +161,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               onPressed: _isLoading ? null : _createTask,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
-                foregroundColor: Colors.white,
+                foregroundColor: AppTheme.textOnPrimary,
                 backgroundColor: AppTheme.primaryColor,
               ),
               child: _isLoading
