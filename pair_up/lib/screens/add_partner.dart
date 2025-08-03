@@ -200,15 +200,14 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
 
   Future<void> _shareCode() async {
     if (_shareCodeValue.isEmpty) return;
-    const deepLinkUrl = 'https://pair-up/invite';
-    final shareText = "$deepLinkUrl?code=$_shareCodeValue";
-    await Share.share(shareText, subject: "Pair-Up Invite");
+    final shareText =
+        "Let's connect on PairUp! My partner code is: $_shareCodeValue";
+    await Share.share(shareText, subject: "PairUp Invite");
   }
 
   @override
   Widget build(BuildContext context) {
-    const deepLinkUrl = 'https://pair-up/invite';
-    final qrData = "$deepLinkUrl?code=$_shareCodeValue";
+    final qrData = _shareCodeValue;
 
     return Scaffold(
       appBar: AppBar(

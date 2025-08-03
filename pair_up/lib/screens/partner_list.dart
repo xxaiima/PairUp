@@ -16,7 +16,7 @@ class PartnerListScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            "No partners yet",
+            "Add a partner to get started!",
             style: Theme.of(
               context,
             ).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600),

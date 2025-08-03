@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:pair_up/screens/home.dart';
 import '../widgets/custom_widgets.dart';
 import 'signin.dart';
 
@@ -76,32 +77,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'unreadNotifications': 0,
         'pushNotificationsEnabled': false,
       });
-
-      await FirebaseAuth.instance.signOut();
-
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => AlertDialog(
-            title: const Text("Account Created"),
-            content: const Text(
-              "Your account has been created successfully. Please log in to continue.",
-            ),
-            actions: [
-              TextButton(
-                child: const Text("OK"),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (context) => SignInScreen()),
-                    (Route<dynamic> route) => false,
-                  );
-                },
-              ),
-            ],
-          ),
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (Route<dynamic> route) => false,
         );
       }
     } on FirebaseAuthException catch (e) {

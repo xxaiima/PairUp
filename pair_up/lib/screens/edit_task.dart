@@ -1,30 +1,45 @@
-// create_task_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../themes/theme.dart';
 
-class CreateTaskScreen extends StatefulWidget {
-  final String partnerName;
-  final String partnerId;
+class EditTaskScreen extends StatefulWidget {
+  final String taskId;
+  final Map<String, dynamic> taskData;
 
-  const CreateTaskScreen({
+  const EditTaskScreen({
     super.key,
-    required this.partnerName,
-    required this.partnerId,
+    required this.taskId,
+    required this.taskData,
   });
 
   @override
-  State<CreateTaskScreen> createState() => _CreateTaskScreenState();
+  State<EditTaskScreen> createState() => _EditTaskScreenState();
 }
 
-class _CreateTaskScreenState extends State<CreateTaskScreen> {
+class _EditTaskScreenState extends State<EditTaskScreen> {
   final TextEditingController _taskNameController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
-  DateTime _selectedDay = DateTime.now();
-  DateTime _focusedDay = DateTime.now();
+  late DateTime _selectedDay;
+  late DateTime _focusedDay;
   bool _isLoading = false;
+
+  late String _initialTaskName;
+  late DateTime _initialSelectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    // Populate the fields with the existing task data
+    _taskNameController.text = widget.taskData['title'] ?? '';
+    _notesController.text = widget.taskData['notes'] ?? '';
+    _selectedDay = (widget.taskData['dueDate'] as Timestamp).toDate();
+    _focusedDay = _selectedDay;
+
+    _initialTaskName = _taskNameController.text;
+    _initialSelectedDay = _selectedDay;
+  }
 
   @override
   void dispose() {
@@ -33,76 +48,71 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     super.dispose();
   }
 
-  Future<void> _createTask() async {
+  Future<void> _updateTask() async {
     final taskName = _taskNameController.text.trim();
     if (taskName.isEmpty) {
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Warning"),
-            content: const Text("Please enter a task name."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
-        );
-      }
+      // Show warning if task name is empty
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final currentUser = FirebaseAuth.instance.currentUser!;
-    final participants = [currentUser.uid, widget.partnerId]..sort();
-    final participantString = participants.join(',');
-    final status = {currentUser.uid: 'pending', widget.partnerId: 'pending'};
+    final bool hasNameChanged = _initialTaskName != taskName;
+    final bool hasDateChanged = !isSameDay(_initialSelectedDay, _selectedDay);
+    final bool shouldSendNotification = hasNameChanged || hasDateChanged;
 
     try {
-      await FirebaseFirestore.instance.collection('tasks').add({
-        'title': taskName,
-        'dueDate': Timestamp.fromDate(_selectedDay),
-        'createdBy': currentUser.uid,
-        'participants': participants,
-        'participantString': participantString,
-        'isPaired': true,
-        'status': status,
-        'notes': _notesController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      final currentUserName = currentUser.displayName ?? 'A User';
-      final currentUserFirstName = currentUserName.split(' ').first;
-
       await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.partnerId)
-          .collection('notifications')
-          .add({
-            'senderId': currentUser.uid,
-            'type': 'task_created',
-            'message': '$currentUserFirstName added a new task: "$taskName".',
-            'initials': currentUserFirstName.substring(0, 1),
-            'senderName': currentUserName,
-            'timestamp': FieldValue.serverTimestamp(),
+          .collection('tasks')
+          .doc(widget.taskId)
+          .update({
+            'title': taskName,
+            'dueDate': Timestamp.fromDate(_selectedDay),
+            'notes': _notesController.text.trim(),
           });
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.partnerId)
-          .update({'unreadNotifications': FieldValue.increment(1)});
+      if (shouldSendNotification) {
+        final currentUser = FirebaseAuth.instance.currentUser!;
+        final currentUserName = currentUser.displayName ?? 'A User';
+        final currentUserFirstName = currentUserName.split(' ').first;
+        final partnerId = widget.taskData['participants'].firstWhere(
+          (id) => id != currentUser.uid,
+          orElse: () => null,
+        );
+
+        if (partnerId != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(partnerId)
+              .collection('notifications')
+              .add({
+                'type': 'task_edited',
+                'message':
+                    '$currentUserFirstName edited the task: "$taskName".',
+                'senderId': currentUser.uid,
+                'senderName': currentUserName,
+                'initials': currentUserFirstName.substring(0, 1),
+                'timestamp': FieldValue.serverTimestamp(),
+              });
+
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(partnerId)
+              .update({'unreadNotifications': FieldValue.increment(1)});
+        }
+      }
 
       if (mounted) {
         Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Task updated successfully.")),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Failed to create task: $e")));
+        ).showSnackBar(SnackBar(content: Text("Failed to update task: $e")));
       }
     } finally {
       if (mounted) {
@@ -114,8 +124,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("New Task")),
-      body: Padding(
+      appBar: AppBar(title: const Text("Edit Task")),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +152,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               controller: _notesController,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: "Notes (Optional)",
+                labelText: "Notes",
                 hintText: "Add any extra details here...",
                 labelStyle: TextStyle(color: AppTheme.primaryColor),
                 border: OutlineInputBorder(
@@ -185,17 +195,16 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Spacer(),
             ElevatedButton(
-              onPressed: _isLoading ? null : _createTask,
+              onPressed: _isLoading ? null : _updateTask,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
                 foregroundColor: AppTheme.textOnPrimary,
                 backgroundColor: AppTheme.primaryColor,
               ),
               child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Create Task'),
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Save Changes'),
             ),
           ],
         ),

@@ -129,6 +129,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || user.email == null) return;
 
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
     try {
       AuthCredential credential = EmailAuthProvider.credential(
         email: user.email!,
@@ -139,14 +145,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final db = FirebaseFirestore.instance;
       final batch = db.batch();
 
-      final userDoc = await db.collection('users').doc(user.uid).get();
-      final List<dynamic> partners = userDoc.data()?['partners'] ?? [];
+      final userDocSnapshot = await db.collection('users').doc(user.uid).get();
+      final userData = userDocSnapshot.data();
 
-      for (final partnerId in partners) {
-        final partnerRef = db.collection('users').doc(partnerId);
-        batch.update(partnerRef, {
-          'partners': FieldValue.arrayRemove([user.uid]),
-        });
+      if (userData != null) {
+        final List<dynamic> partners = userData['partners'] ?? [];
+        for (final partnerId in partners) {
+          final partnerRef = db.collection('users').doc(partnerId);
+
+          batch.update(partnerRef, {
+            'partners': FieldValue.arrayRemove([user.uid]),
+          });
+
+          final notificationsQuery = await partnerRef
+              .collection('notifications')
+              .where('senderId', isEqualTo: user.uid)
+              .get();
+          for (final doc in notificationsQuery.docs) {
+            batch.delete(doc.reference);
+          }
+        }
+        final tasksQuery = await db
+            .collection('tasks')
+            .where('participants', arrayContains: user.uid)
+            .get();
+        for (final doc in tasksQuery.docs) {
+          batch.delete(doc.reference);
+        }
+
+        final booksQuery = await db
+            .collection('books')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+        for (final doc in booksQuery.docs) {
+          batch.delete(doc.reference);
+        }
       }
 
       batch.delete(db.collection('users').doc(user.uid));
@@ -156,8 +189,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await user.delete();
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
+        Navigator.of(context).pop();
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const WelcomeScreen()),
           (route) => false,
         );
@@ -167,12 +200,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) {
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message ?? "An error occurred.")),
         );
       }
     } catch (e) {
       if (mounted) {
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("An unexpected error occurred: $e")),
         );
@@ -297,6 +332,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             TextButton(
               onPressed: () async {
+                final newName = _nameController.text.trim();
+
+                if (newName.isEmpty) {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Invalid Name'),
+                      content: const Text('Name cannot be empty.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
                 await user?.updateDisplayName(_nameController.text);
                 if (context.mounted) {
                   setState(() {});

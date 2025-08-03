@@ -2,10 +2,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../themes/theme.dart';
 import 'create_task.dart';
 import 'partner_reading_list.dart';
+import 'edit_task.dart';
 
 class PartnerTaskScreen extends StatefulWidget {
   final String partnerId;
@@ -321,11 +323,20 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                         taskData['status']?[widget.partnerId] == 'completed';
                     final DateTime dueDate = (taskData['dueDate'] as Timestamp)
                         .toDate();
+                    final bool isOverdue =
+                        dueDate.isBefore(DateTime.now()) &&
+                        !isSameDay(dueDate, DateTime.now());
                     final String formattedDate = DateFormat.yMMMd().format(
                       dueDate,
                     );
+                    final bool hasNotes =
+                        taskData['notes'] != null &&
+                        (taskData['notes'] as String).isNotEmpty;
 
                     return Card(
+                      color: isOverdue && !isCompletedByUser
+                          ? const Color.fromARGB(255, 229, 130, 130)
+                          : null,
                       child: ListTile(
                         leading: _isDeleting
                             ? Checkbox(
@@ -446,13 +457,26 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                         title: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              taskData['title'],
-                              style: TextStyle(
-                                decoration: isCompletedByUser
-                                    ? TextDecoration.lineThrough
-                                    : TextDecoration.none,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  taskData['title'],
+                                  style: TextStyle(
+                                    decoration: isCompletedByUser
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                                if (hasNotes)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 8.0),
+                                    child: Icon(
+                                      Icons.description_outlined,
+                                      size: 16,
+                                      color: Color(0xFF0A2342),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: 4),
                             Row(
@@ -505,7 +529,35 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                             ),
                           ],
                         ),
-                        trailing: Text(formattedDate),
+                        trailing: _isDeleting
+                            ? null
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(formattedDate),
+                                  const SizedBox(width: 8),
+                                  // ADDED: The Edit button
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.edit,
+                                      size: 20,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    tooltip: 'Edit Task',
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EditTaskScreen(
+                                            taskId: taskId,
+                                            taskData: taskData,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                       ),
                     );
                   },
