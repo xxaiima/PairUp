@@ -61,18 +61,8 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
     final shortCode = _codeController.text.trim();
     if (shortCode.isEmpty) {
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Warning"),
-            content: const Text("Please enter a partner code."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please enter a partner code.")),
         );
       }
       return;
@@ -89,17 +79,10 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
     if (querySnapshot.docs.isEmpty) {
       if (mounted) {
         setState(() => _isLoading = false);
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Invalid Code"),
-            content: const Text("The partner code you entered is invalid."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("The partner code you entered is invalid."),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -110,17 +93,10 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
     if (partnerId == currentUser.uid) {
       if (mounted) {
         setState(() => _isLoading = false);
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Error"),
-            content: const Text("You cannot add yourself as a partner."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("You cannot add yourself as a partner."),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -137,17 +113,11 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
     if (currentUserPartners.contains(partnerId)) {
       if (mounted) {
         setState(() => _isLoading = false);
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Already Paired"),
-            content: const Text("You are already paired with this user."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("You are already paired with this user."),
+            backgroundColor:
+                Colors.orange, // Optional: Use a different color for warnings
           ),
         );
       }

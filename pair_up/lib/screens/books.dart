@@ -139,23 +139,11 @@ class _BooksScreenState extends State<BooksScreen> {
     });
 
     if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Book Added'),
-          content: Text('$title has been added to your reading list.'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _searchController.clear();
-                FocusScope.of(context).unfocus();
-              },
-              child: Text('OK', style: TextStyle(color: AppTheme.primaryColor)),
-            ),
-          ],
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$title has been added to your reading list.')),
       );
+      _searchController.clear();
+      FocusScope.of(context).unfocus();
       setState(() {
         _searchResults = [];
       });
@@ -181,18 +169,10 @@ class _BooksScreenState extends State<BooksScreen> {
         _selectedBookIds.clear();
         _isDeleting = false;
       });
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Deletion Complete'),
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
           content: Text('$numberOfBooksToDelete book(s) deleted successfully.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('OK', style: TextStyle(color: AppTheme.primaryColor)),
-            ),
-          ],
+          backgroundColor: Colors.green, // Optional: A success color
         ),
       );
     }

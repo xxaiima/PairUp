@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../themes/theme.dart';
 import 'create_task.dart';
 import 'partner_reading_list.dart';
+import 'partner_chat.dart';
 import 'edit_task.dart';
 
 class PartnerTaskScreen extends StatefulWidget {
@@ -79,19 +80,12 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
           _isDeleting = false;
         });
 
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text("Success"),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
             content: Text(
-              "$numberOfTasksToDelete task(s) deleted successfully.",
+              '$numberOfTasksToDelete task(s) deleted successfully.',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text("OK"),
-              ),
-            ],
+            backgroundColor: Colors.green,
           ),
         );
       }
@@ -120,7 +114,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(
-            child: const Text("Unpair", style: TextStyle(color: Colors.red)),
+            child: const Text("Unpair", style: TextStyle(color: Colors.pink)),
             onPressed: () async {
               await db.runTransaction((transaction) async {
                 final tasksQuery = await db
@@ -189,68 +183,61 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        actions: _isDeleting
-            ? [
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  tooltip: 'Delete Selected Tasks',
-                  onPressed: () {
-                    if (_selectedTaskIds.isNotEmpty) {
-                      showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Delete Tasks?'),
-                          content: Text(
-                            'Are you sure you want to delete ${_selectedTaskIds.length} task(s)?',
+        actions: [
+          IconButton(
+            icon: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('chats')
+                  .doc(([currentUser.uid, widget.partnerId]..sort()).join('_'))
+                  .collection('unread_status')
+                  .where('userId', isEqualTo: currentUser.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                bool hasUnread = false;
+                if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                  final unreadDoc = snapshot.data!.docs.first;
+                  final data = unreadDoc.data() as Map<String, dynamic>?;
+                  if (data != null) {
+                    hasUnread = data['unreadCount'] > 0;
+                  }
+                }
+                return Stack(
+                  children: [
+                    const Icon(Icons.forum_rounded, size: 35.0),
+                    if (hasUnread)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(1),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                _deleteTasks();
-                              },
-                              child: const Text(
-                                'Delete',
-                                style: TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
+                          constraints: const BoxConstraints(
+                            minWidth: 12,
+                            minHeight: 12,
+                          ),
                         ),
-                      );
-                    } else {
-                      setState(() => _isDeleting = false);
-                    }
-                  },
+                      ),
+                  ],
+                );
+              },
+            ),
+            tooltip: "Chat with ${widget.partnerName}",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PartnerChatScreen(
+                    partnerId: widget.partnerId,
+                    partnerName: widget.partnerName,
+                  ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  tooltip: 'Cancel Deletion',
-                  onPressed: () {
-                    setState(() {
-                      _isDeleting = false;
-                      _selectedTaskIds.clear();
-                    });
-                  },
-                ),
-              ]
-            : [
-                IconButton(
-                  icon: const Icon(Icons.delete_sweep),
-                  tooltip: 'Select tasks to delete',
-                  onPressed: () {
-                    setState(() => _isDeleting = true);
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.link_off),
-                  tooltip: "Unpair",
-                  onPressed: () => _unpairPartner(context),
-                ),
-              ],
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,28 +248,104 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PartnerReadingListScreen(
-                          partnerId: widget.partnerId,
-                          partnerName: widget.partnerName,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PartnerReadingListScreen(
+                              partnerId: widget.partnerId,
+                              partnerName: widget.partnerName,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Text(
+                          "Tap to see $partnerFirstName's books >",
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.normal,
+                                color: AppTheme.primaryColor,
+                              ),
                         ),
                       ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text(
-                      "Tap to see $partnerFirstName's books >",
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.normal,
-                        color: AppTheme.primaryColor,
-                      ),
                     ),
-                  ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!_isDeleting)
+                          IconButton(
+                            icon: const Icon(Icons.delete_sweep),
+                            tooltip: 'Select tasks to delete',
+                            onPressed: () {
+                              setState(() => _isDeleting = true);
+                            },
+                          ),
+                        if (!_isDeleting)
+                          IconButton(
+                            icon: const Icon(Icons.link_off),
+                            tooltip: "Unpair",
+                            onPressed: () => _unpairPartner(context),
+                          ),
+                      ],
+                    ),
+                    if (_isDeleting)
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.delete),
+                            tooltip: 'Delete Selected Tasks',
+                            onPressed: () {
+                              if (_selectedTaskIds.isNotEmpty) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Delete Tasks?'),
+                                    content: Text(
+                                      'Are you sure you want to delete ${_selectedTaskIds.length} task(s)?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                          _deleteTasks();
+                                        },
+                                        child: const Text(
+                                          'Delete',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              } else {
+                                setState(() => _isDeleting = false);
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Cancel Deletion',
+                            onPressed: () {
+                              setState(() {
+                                _isDeleting = false;
+                                _selectedTaskIds.clear();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
                 const Divider(),
               ],
@@ -459,12 +522,17 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  taskData['title'],
-                                  style: TextStyle(
-                                    decoration: isCompletedByUser
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
+                                Expanded(
+                                  // Add Expanded here
+                                  child: Text(
+                                    taskData['title'],
+                                    style: TextStyle(
+                                      decoration: isCompletedByUser
+                                          ? TextDecoration.lineThrough
+                                          : TextDecoration.none,
+                                    ),
+                                    maxLines: 5,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 if (hasNotes)
@@ -567,6 +635,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
           ),
         ],
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

@@ -91,33 +91,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       try {
         await FirebaseAuth.instance.sendPasswordResetEmail(email: user.email!);
         if (context.mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Password Reset'),
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
               content: Text('Password reset link sent to ${user.email}'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
-                ),
-              ],
+              backgroundColor: Colors.green, // Optional: for success
             ),
           );
         }
       } catch (e) {
         if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Error'),
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
               content: Text('Failed to send password reset email: $e'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('OK'),
-                ),
-              ],
+              backgroundColor: Colors.red, // Optional: for errors
             ),
           );
         }
@@ -394,11 +380,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             SizedBox(height: 8),
             Text('Getting Started:'),
+            Text('• Turn on push notifications to stay updated.'),
             Text('• Share your unique code to connect with a partner.'),
-            Text(
-              '• Accept or decline partner requests from the notifications screen.',
-            ),
-            SizedBox(height: 8),
             Text('Task Management:'),
             Text(
               '• Create and manage tasks for a partnership from the partner\'s screen.',

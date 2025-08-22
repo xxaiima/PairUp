@@ -26,21 +26,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
         emailController.text.trim().isEmpty ||
         passwordController.text.trim().isEmpty ||
         confirmPasswordController.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Missing Information"),
-          content: const Text(
-            "Please fill in all fields to create an account.",
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Please fill in all fields to create an account."),
+            backgroundColor:
+                Colors.red, // Optional: You can customize the background color
           ),
-          actions: [
-            TextButton(
-              child: const Text("OK"),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
-        ),
-      );
+        );
+      }
       return;
     }
 
@@ -69,6 +63,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (user == null) return;
 
       await user.updateDisplayName(nameController.text.trim());
+      await user.sendEmailVerification();
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'name': nameController.text.trim(),
@@ -78,10 +73,31 @@ class _SignUpScreenState extends State<SignUpScreen> {
         'pushNotificationsEnabled': false,
       });
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (Route<dynamic> route) => false,
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('Verify Your Email'),
+              content: const Text(
+                'Please check your email and click the verification link.',
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SignInScreen(),
+                      ),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
+                ),
+              ],
+            );
+          },
         );
       }
     } on FirebaseAuthException catch (e) {

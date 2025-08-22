@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../themes/theme.dart';
 import 'partner_task.dart';
+import 'partner_chat.dart'; // Import the chat screen
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -240,27 +241,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         timeString,
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
+                      trailing: const Icon(Icons.arrow_forward_ios),
                       onTap: () {
                         if (_isSelecting) {
                           _toggleNotificationSelection(notificationId);
                         } else {
                           final type = notificationData['type'] as String?;
+                          final partnerId =
+                              notificationData['senderId'] as String?;
+                          final partnerName =
+                              notificationData['senderName'] as String?;
 
-                          if (type == 'task_created' ||
-                              type == 'task_completed' ||
-                              type == 'task_deleted') {
-                            final partnerId =
-                                notificationData['senderId'] as String?;
-                            final partnerName =
-                                notificationData['senderName'] as String?;
-
-                            if (partnerId != null &&
-                                partnerName != null &&
-                                context.mounted) {
+                          if (partnerId != null &&
+                              partnerName != null &&
+                              context.mounted) {
+                            if (type == 'task_created' ||
+                                type == 'task_completed' ||
+                                type == 'task_deleted') {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => PartnerTaskScreen(
+                                    partnerId: partnerId,
+                                    partnerName: partnerName,
+                                  ),
+                                ),
+                              );
+                            } else if (type == 'chat_message') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => PartnerChatScreen(
                                     partnerId: partnerId,
                                     partnerName: partnerName,
                                   ),
