@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:pair_up/screens/home.dart';
 import '../widgets/custom_widgets.dart';
 import 'signin.dart';
 
@@ -30,8 +29,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Please fill in all fields to create an account."),
-            backgroundColor:
-                Colors.red, // Optional: You can customize the background color
+            backgroundColor: Color.fromARGB(
+              255,
+              218,
+              132,
+              160,
+            ), // Optional: You can customize the background color
           ),
         );
       }
@@ -175,7 +178,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
                       _passwordMismatchError!,
-                      style: const TextStyle(color: Colors.red),
+                      style: const TextStyle(
+                        color: Color.fromARGB(255, 218, 132, 160),
+                      ),
                     ),
                   ),
                 const SizedBox(height: 40),

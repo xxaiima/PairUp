@@ -94,7 +94,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Password reset link sent to ${user.email}'),
-              backgroundColor: Colors.green, // Optional: for success
+              backgroundColor: const Color.fromARGB(
+                255,
+                184,
+                155,
+                218,
+              ), // Optional: for success
             ),
           );
         }
@@ -103,7 +108,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Failed to send password reset email: $e'),
-              backgroundColor: Colors.red, // Optional: for errors
+              backgroundColor: Color.fromARGB(
+                255,
+                218,
+                132,
+                160,
+              ), // Optional: for errors
             ),
           );
         }
@@ -284,7 +294,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : null,
                   child: const Text(
                     'Next',
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: Color.fromARGB(255, 218, 132, 160)),
                   ),
                 );
               },
@@ -484,7 +494,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => _sendPasswordResetEmail(user),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.delete_forever, color: Colors.red),
+                  leading: const Icon(
+                    Icons.delete_forever,
+                    color: Color.fromARGB(255, 218, 132, 160),
+                  ),
                   title: const Text('Delete Account'),
                   onTap: _showDeleteAccountDialog,
                 ),

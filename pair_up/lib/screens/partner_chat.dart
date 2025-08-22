@@ -225,7 +225,10 @@ class _PartnerChatScreenState extends State<PartnerChatScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.delete, color: Colors.red),
+                leading: const Icon(
+                  Icons.delete,
+                  color: Color.fromARGB(255, 218, 132, 160),
+                ),
                 title: const Text('Delete'),
                 onTap: () {
                   _deleteMessage(messageId);

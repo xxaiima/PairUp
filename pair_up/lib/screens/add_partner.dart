@@ -82,7 +82,7 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("The partner code you entered is invalid."),
-            backgroundColor: Colors.red,
+            backgroundColor: Color.fromARGB(255, 218, 132, 160),
           ),
         );
       }
@@ -96,7 +96,7 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("You cannot add yourself as a partner."),
-            backgroundColor: Colors.red,
+            backgroundColor: Color.fromARGB(255, 218, 132, 160),
           ),
         );
       }
@@ -116,8 +116,7 @@ class _AddPartnerScreenState extends State<AddPartnerScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("You are already paired with this user."),
-            backgroundColor:
-                Colors.orange, // Optional: Use a different color for warnings
+            backgroundColor: Color.fromARGB(255, 218, 132, 160),
           ),
         );
       }

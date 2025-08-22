@@ -87,7 +87,7 @@ class PartnerListScreen extends StatelessWidget {
                             style: const TextStyle(color: Colors.white),
                           ),
                           badgeStyle: const badges.BadgeStyle(
-                            badgeColor: Colors.red,
+                            badgeColor: Color.fromARGB(255, 218, 132, 160),
                           ),
                           child: const Icon(Icons.notifications_outlined),
                         )

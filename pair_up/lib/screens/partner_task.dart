@@ -85,7 +85,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
             content: Text(
               '$numberOfTasksToDelete task(s) deleted successfully.',
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: const Color.fromARGB(255, 184, 155, 218),
           ),
         );
       }
@@ -114,7 +114,10 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
             onPressed: () => Navigator.of(context).pop(),
           ),
           TextButton(
-            child: const Text("Unpair", style: TextStyle(color: Colors.pink)),
+            child: const Text(
+              "Unpair",
+              style: TextStyle(color: Color.fromARGB(255, 218, 132, 160)),
+            ),
             onPressed: () async {
               await db.runTransaction((transaction) async {
                 final tasksQuery = await db
@@ -211,7 +214,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(1),
                           decoration: BoxDecoration(
-                            color: Colors.red,
+                            color: Color.fromARGB(255, 218, 132, 160),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           constraints: const BoxConstraints(
@@ -322,7 +325,14 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                                         },
                                         child: const Text(
                                           'Delete',
-                                          style: TextStyle(color: Colors.red),
+                                          style: TextStyle(
+                                            color: Color.fromARGB(
+                                              255,
+                                              218,
+                                              132,
+                                              160,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ],

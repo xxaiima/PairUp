@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pair_up/screens/report_generation.dart';
 import 'partner_list.dart';
 import 'books.dart';
 import 'settings.dart';
@@ -16,6 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const List<Widget> _pages = <Widget>[
     PartnerListScreen(),
     BooksScreen(),
+    ReportGenerationScreen(),
     SettingsScreen(),
   ];
 
@@ -49,6 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.book_outlined),
                 activeIcon: Icon(Icons.book),
                 label: 'Books',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.report_gmailerrorred_rounded),
+                activeIcon: Icon(Icons.report),
+                label: 'Analytics',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.settings_outlined),
