@@ -136,8 +136,7 @@ class _BooksScreenState extends State<BooksScreen> {
       'imageUrl': imageUrl,
       'currentPage': 0,
       'totalPages': pageCount,
-      'createdAt':
-          FieldValue.serverTimestamp(), // ADDED: The creation timestamp
+      'createdAt': FieldValue.serverTimestamp(),
     });
 
     if (mounted) {
@@ -174,12 +173,7 @@ class _BooksScreenState extends State<BooksScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('$numberOfBooksToDelete book(s) deleted successfully.'),
-          backgroundColor: const Color.fromARGB(
-            255,
-            184,
-            155,
-            218,
-          ), // Optional: A success color
+          backgroundColor: const Color.fromARGB(255, 184, 155, 218),
         ),
       );
     }

@@ -40,7 +40,7 @@ class PartnerListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("My Partners"),
+        title: const Text("Partners"),
         automaticallyImplyLeading: false,
         actions: [
           StreamBuilder<DocumentSnapshot>(
@@ -86,9 +86,7 @@ class PartnerListScreen extends StatelessWidget {
                             '$unreadCount',
                             style: const TextStyle(color: Colors.white),
                           ),
-                          badgeStyle: const badges.BadgeStyle(
-                            badgeColor: Color.fromARGB(255, 218, 132, 160),
-                          ),
+                          badgeStyle: badges.BadgeStyle(badgeColor: Colors.red),
                           child: const Icon(Icons.notifications_outlined),
                         )
                       : const Icon(Icons.notifications_outlined),

@@ -29,12 +29,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Please fill in all fields to create an account."),
-            backgroundColor: Color.fromARGB(
-              255,
-              218,
-              132,
-              160,
-            ), // Optional: You can customize the background color
+            backgroundColor: Color.fromARGB(255, 218, 132, 160),
           ),
         );
       }

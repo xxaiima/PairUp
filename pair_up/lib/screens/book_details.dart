@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../themes/theme.dart';
 import 'dart:async';
@@ -59,12 +61,52 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
     });
   }
 
+  Future<void> _sendBookNotification({
+    required String type,
+    required String message,
+  }) async {
+    final currentUser = FirebaseAuth.instance.currentUser!;
+    final partners = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get()
+        .then((doc) => (doc.data()?['partners'] as List?) ?? []);
+
+    for (final partnerId in partners) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(partnerId)
+          .collection('notifications')
+          .add({
+            'senderId': currentUser.uid,
+            'type': type,
+            'message': message,
+            'initials': currentUser.displayName?.substring(0, 1) ?? '?',
+            'senderName': currentUser.displayName ?? 'Anonymous',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(partnerId)
+          .update({'unreadNotifications': FieldValue.increment(1)});
+    }
+  }
+
   Future<void> _updateRating(double newRating) async {
+    final oldRating = _rating;
+    if (oldRating == newRating) return;
     setState(() => _rating = newRating);
     await FirebaseFirestore.instance
         .collection('books')
         .doc(widget.bookId)
         .update({'rating': newRating});
+
+    if (_isShared) {
+      final bookTitle = widget.bookData['title'] ?? 'No Title';
+      final message =
+          "rated the book '$bookTitle' a ${newRating.toStringAsFixed(1)} out of 5 stars.";
+      _sendBookNotification(type: 'book_rated', message: message);
+    }
   }
 
   Future<void> _updateSharing(bool isShared) async {
@@ -73,6 +115,12 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
         .collection('books')
         .doc(widget.bookId)
         .update({'isShared': isShared});
+
+    if (isShared) {
+      final bookTitle = widget.bookData['title'] ?? 'No Title';
+      final message = "has shared the book '$bookTitle' with you.";
+      _sendBookNotification(type: 'book_shared', message: message);
+    }
   }
 
   Future<void> _updateReadingProgress() async {
@@ -152,7 +200,6 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
     if (url == null || url.isEmpty) {
       return const Icon(Icons.book, size: 150, color: Colors.grey);
     }
-    // Ensure the URL uses https for web compatibility.
     final secureUrl = _secureImageUrl(url);
 
     return Image.network(
@@ -164,6 +211,78 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
       },
     );
   }
+
+  Future<void> _likeNotes(BuildContext context) async {
+    final currentUser = FirebaseAuth.instance.currentUser!;
+    final partnerId = widget.bookData['userId'] as String;
+    final bookTitle = widget.bookData['title'] as String;
+    final currentUserName = currentUser.displayName?.split(' ').first ?? 'You';
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(partnerId)
+        .collection('notifications')
+        .add({
+          'senderId': currentUser.uid,
+          'type': 'book_liked',
+          'message':
+              '$currentUserName liked your notes for the book: "$bookTitle".',
+          'initials': currentUserName.substring(0, 1) ?? '?',
+          'senderName': currentUser.displayName ?? 'Anonymous',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+    await FirebaseFirestore.instance.collection('users').doc(partnerId).update({
+      'unreadNotifications': FieldValue.increment(1),
+    });
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Sent a like notification for "$bookTitle" to your partner.',
+          ),
+        ),
+      );
+    }
+  }
+
+  /*Future<void> _recommendBook(BuildContext context) async {
+    final currentUser = FirebaseAuth.instance.currentUser!;
+    final partners = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .get()
+        .then((doc) => (doc.data()?['partners'] as List?) ?? []);
+
+    for (final partnerId in partners) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(partnerId)
+          .collection('notifications')
+          .add({
+            'senderId': currentUser.uid,
+            'type': 'book_recommended',
+            'message':
+                '${currentUser.displayName?.split(' ').first ?? 'You'} recommended the book: "${widget.bookData['title']}".',
+            'initials': currentUser.displayName?.substring(0, 1) ?? '?',
+            'senderName': currentUser.displayName ?? 'Anonymous',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(partnerId)
+          .update({'unreadNotifications': FieldValue.increment(1)});
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Recommended this book to your partners.'),
+        ),
+      );
+    }
+  }*/
 
   @override
   Widget build(BuildContext context) {
@@ -216,7 +335,18 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            Text('Rating', style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Rating', style: Theme.of(context).textTheme.titleLarge),
+                // CHANGE: This button is now conditional
+                /*if (!widget.isReadOnly)
+                  IconButton(
+                    icon: Icon(Icons.recommend, color: AppTheme.primaryColor),
+                    onPressed: () => _recommendBook(context),
+                  ),*/
+              ],
+            ),
             const SizedBox(height: 8),
             IgnorePointer(
               ignoring: widget.isReadOnly,
@@ -233,7 +363,22 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Text('Notes', style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Notes', style: Theme.of(context).textTheme.titleLarge),
+                // ADDED: The Like button for notes
+                if (widget.isReadOnly)
+                  IconButton(
+                    icon: Icon(
+                      Icons.thumb_up_alt_outlined,
+                      color: AppTheme.primaryColor,
+                    ),
+                    onPressed: () => _likeNotes(context),
+                    tooltip: 'Like these notes',
+                  ),
+              ],
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _notesController,
@@ -256,7 +401,6 @@ class _BookDetailsScreenState extends State<BookDetailsScreen> {
                     'Share with Partners',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-
                   Switch(
                     value: _isShared,
                     onChanged: _updateSharing,

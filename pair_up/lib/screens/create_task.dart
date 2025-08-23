@@ -114,8 +114,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("New Task")),
-      body: Padding(
+      appBar: AppBar(title: const Text("Create Task")),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +142,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               controller: _notesController,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: "Notes (Optional)",
+                labelText: "Notes",
                 hintText: "Add any extra details here...",
                 labelStyle: TextStyle(color: AppTheme.primaryColor),
                 border: OutlineInputBorder(
@@ -185,7 +185,6 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Spacer(),
             ElevatedButton(
               onPressed: _isLoading ? null : _createTask,
               style: ElevatedButton.styleFrom(
@@ -194,8 +193,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                 backgroundColor: AppTheme.primaryColor,
               ),
               child: _isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Create Task'),
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Save Changes'),
             ),
           ],
         ),

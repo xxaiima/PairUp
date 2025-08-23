@@ -53,8 +53,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: 'Books',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.report_gmailerrorred_rounded),
-                activeIcon: Icon(Icons.report),
+                icon: Icon(Icons.analytics_outlined),
+                activeIcon: Icon(Icons.analytics),
                 label: 'Analytics',
               ),
               BottomNavigationBarItem(

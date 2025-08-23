@@ -377,36 +377,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('About'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('App Version: 1.0.0'),
-            SizedBox(height: 10),
-            Text(
-              'User Instructions:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('Getting Started:'),
-            Text('• Turn on push notifications to stay updated.'),
-            Text('• Share your unique code to connect with a partner.'),
-            Text('Task Management:'),
-            Text(
-              '• Create and manage tasks for a partnership from the partner\'s screen.',
-            ),
-            Text(
-              '• Check off tasks to mark them complete or use the delete button.',
-            ),
-            SizedBox(height: 8),
-            Text('Book Management:'),
-            Text('• Use the search bar to find and add new books.'),
-            Text('• Tap a book to update progress, notes, or ratings.'),
-            Text(
-              '• Use the sharing toggle to share your progress with partners.',
-            ),
-          ],
+        title: const Text('About PairUp'),
+        content: const SingleChildScrollView(
+          child: Text('''
+
+Version: 1.0.2
+
+PairUp is a collaborative productivity app that helps you and your partner achieve goals together by turning accountability into a shared journey.
+
+Key Features:
+
+Shared Task Management: Create, track, and complete tasks as a team.
+
+Collaborative Reading Lists: Discover books, track progress, and share notes.
+
+Real-time Communication: Stay connected with dedicated chats and instant updates.
+
+Personalized Analytics: View reports on tasks, books, and activity to track growth.
+'''),
         ),
         actions: [
           TextButton(

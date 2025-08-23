@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../themes/theme.dart';
 import 'partner_task.dart';
-import 'partner_chat.dart'; // Import the chat screen
+import 'partner_chat.dart';
+import 'partner_reading_list.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -277,7 +278,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   ),
                                 ),
                               );
-                            }
+                            } else if (type == 'book_rated' ||
+                                type == 'book_shared') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      PartnerReadingListScreen(
+                                        partnerId: partnerId,
+                                        partnerName: partnerName,
+                                      ),
+                                ),
+                              );
+                            } /*else if (type == 'book_recommended' ||
+                                type == 'book_liked') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const BooksScreen(),
+                                ),
+                              );
+                            }*/
                           }
                         }
                       },

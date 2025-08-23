@@ -214,7 +214,7 @@ class _PartnerTaskScreenState extends State<PartnerTaskScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(1),
                           decoration: BoxDecoration(
-                            color: Color.fromARGB(255, 218, 132, 160),
+                            color: Colors.red,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           constraints: const BoxConstraints(

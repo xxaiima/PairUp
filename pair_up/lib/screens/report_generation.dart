@@ -125,10 +125,8 @@ class _ReportGenerationScreenState extends State<ReportGenerationScreen> {
         final currentPage = bookData['currentPage'] as int? ?? 0;
         final rating = (bookData['rating'] as double?) ?? 0.0;
 
-        // NEW LOGIC: Total Pages Read is the sum of all current pages
         myTotalPagesRead += currentPage;
 
-        // NEW LOGIC: Books I have read is when currentPage == totalPages
         if (totalPages > 0 && currentPage == totalPages) {
           myBooksRead++;
         }
@@ -166,7 +164,7 @@ class _ReportGenerationScreenState extends State<ReportGenerationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your PairUp Analytics'),
+        title: const Text('PairUp Analytics'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
